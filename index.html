@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แดชบอร์ดหุ่นยนต์ตัดหญ้ามุแฮะแฮะ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--ink:#1c2a22;--mute:#62706a;--paper:#f4f6f2;--card:#fff;--line:#dbe1da;--grass:#237a4b;--a1:#1f6feb;--a2:#8e44ad;--target:#d98a00;--bad:#c62828;--ok:#1b8a4a}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 "Noto Sans Thai",system-ui,sans-serif;background:var(--paper);color:var(--ink)}
+button,input{font:inherit}
+header{position:sticky;top:0;z-index:1000;background:var(--ink);color:#fff;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 16px}
+header h1{font-size:17px;margin:0;flex:1 1 auto}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:99px;background:#fff2;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:#e0a100}
+.pill.on .dot{background:#3ddc84}.pill.off .dot{background:#ff5252}
+header input{width:170px;padding:6px 9px;border-radius:8px;border:1px solid #fff5;background:#fff1;color:#fff}
+main{max-width:1400px;margin:auto;padding:14px;display:grid;gap:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:22px;line-height:1.25}
+.stat span{color:var(--mute);font-size:13px}
+.stat small{display:block;color:var(--mute);font-size:12px}
+.bad{color:var(--bad)}.good{color:var(--ok)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+h2{font-size:16px;margin:0 0 8px}
+.hint{color:var(--mute);font-size:13px;margin:0 0 8px}
+#local{width:100%;height:auto;aspect-ratio:10/9;background:#fbfcfa;border-radius:8px;border:1px solid var(--line);cursor:crosshair}
+#map{height:min(70vh,620px);border-radius:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:10px}
+.row label{font-size:12px;color:var(--mute);display:block}
+.row input{width:84px;padding:7px;border:1px solid var(--line);border-radius:8px}
+.btn{padding:9px 14px;border:0;border-radius:8px;background:var(--grass);color:#fff;font-weight:600;cursor:pointer}
+.btn.alt{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.warn{background:var(--bad)}
+.msg{font-size:13px;color:var(--mute);min-height:1.4em;margin-top:6px}
+details{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+summary{cursor:pointer;font-weight:600}
+.cfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:10px}
+.cfg label{font-size:12px;color:var(--mute)}
+.cfg input{width:100%;padding:7px;border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}
+pre{background:#101722;color:#dbe7f5;padding:10px;border-radius:8px;max-height:300px;overflow:auto;font-size:12px}
+.chk{display:inline-flex;gap:6px;align-items:center;font-size:13px;margin-left:8px}
+.angles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;align-items:start}
+.angles figure{margin:0;text-align:center}
+.angles figure svg{width:100%;max-width:230px;height:auto}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🚜 หุ่นยนต์ตัดหญ้ามุแฮะแฮะ</h1>
+  <span class="pill" id="conn"><i class="dot"></i><span id="connTxt">กำลังเชื่อมต่อ…</span></span>
+  <label>IP หุ่นยนต์ <input id="api" value="http://172.20.10.2"></label>
+</header>
+
+<main>
+
+<div class="stats">
+  <div class="stat"><span>ตำแหน่งหุ่นยนต์ (UWB)</span><b id="pos">--</b><small id="posSub">รอข้อมูล</small></div>
+  <div class="stat"><span>ระยะถึงเป้าหมาย</span><b id="dist">--</b><small id="distSub">ยังไม่ได้ตั้งเป้าหมาย</small></div>
+  <div class="stat"><span>Anchor 1</span><b id="u1">--</b><small id="u1s"></small></div>
+  <div class="stat"><span>Anchor 2</span><b id="u2">--</b><small id="u2s"></small></div>
+  <div class="stat"><span>GPS ของหุ่นยนต์</span><b id="gps">--</b><small id="gpsSub"></small></div>
+  <div class="stat">
+    <span>โหมดขับ</span><b id="mode">--</b>
+    <div class="row" style="margin-top:6px">
+      <button class="btn" style="padding:5px 10px" onclick="setMode('auto')">Auto</button>
+      <button class="btn warn" style="padding:5px 10px" onclick="setMode('manual')">Manual</button>
+    </div>
+  </div>
+</div>
+
+<div class="cols">
+  <section>
+    <h2>สนามและตำแหน่ง UWB</h2>
+    <p class="hint">แตะบนสนามเพื่อเลือกเป้าหมาย</p>
+    <svg id="local" viewBox="0 0 1000 900"></svg>
+    <div class="row">
+      <div><label>เป้าหมาย X (ม.)</label><input id="tx" type="number" step="0.1" value="5"></div>
+      <div><label>เป้าหมาย Y (ม.)</label><input id="ty" type="number" step="0.1" value="10"></div>
+      <button class="btn" onclick="sendTarget()">ส่งเป้าหมาย</button>
+      <button class="btn warn" onclick="clearTarget()">ยกเลิกเป้าหมาย</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </section>
+
+  <section>
+    <h2>แผนที่ GPS <label class="chk"><input type="checkbox" id="follow" checked> ตามหุ่นยนต์</label></h2>
+    <div id="map"></div>
+  </section>
+</div>
+
+<section>
+  <h2>มุมและทิศทาง</h2>
+  <div class="angles">
+    <figure><svg id="dialC" viewBox="-110 -110 220 220"></svg><figcaption>เข็มทิศ (เหนือ = 0°)</figcaption></figure>
+    <figure><svg id="dialF" viewBox="-110 -110 220 220"></svg><figcaption>แกนสนาม (+X = 0°)</figcaption></figure>
+    <table>
+      <tr><td>ทิศเข็มทิศ</td><td id="angC">--</td></tr>
+      <tr><td>ทิศแกนสนาม</td><td id="angF">--</td></tr>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>วางแผนเส้นทางตัดหญ้า</h2>
+  <div class="row">
+    <button class="btn" onclick="markHere()">📍 มาร์คจุดนี้</button>
+    <button class="btn alt" onclick="undoPoint()">ลบจุดล่าสุด</button>
+    <button class="btn alt" onclick="clearPoly()">ล้างมุมทั้งหมด</button>
+  </div>
+  <div class="row">
+    <div><label>ระยะห่างแนว (ม.)</label><input id="spacing" type="number" step="0.005" value="0.225"></div>
+    <div><label>มุมแนว (°)</label><input id="angle" type="number" step="5" value="0"></div>
+    <div><label>ถอยจากขอบ (ม.)</label><input id="margin" type="number" step="0.05" value="0.40"></div>
+    <button class="btn" onclick="genPath()">สร้างเส้นทาง</button>
+  </div>
+  <div class="msg" id="planMsg"></div>
+</section>
+
+<details>
+  <summary>ข้อมูลดิบ API</summary>
+  <pre id="raw">{}</pre>
+</details>
+
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const num = v => Number(v);
+const fmt = (v, d = 2) => Number.isFinite(num(v)) ? num(v).toFixed(d) : "--";
+const set = (id, t) => { const e = $(id); if (e) e.textContent = t; };
+
+async function autoFetchRobotIP() {
+  try {
+    const res = await fetch('./ip.json?t=' + Date.now(), { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ip) {
+        $('api').value = 'http://' + data.ip;
+      }
+    }
+  } catch (e) {}
+}
+autoFetchRobotIP();
+
+let map = L.map('map').setView([16, 103], 18);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 }).addTo(map);
+let robotMarker = null;
+
+const base = () => $("api").value.trim().replace(/\/+$/, "");
+
+async function poll(){
+  try {
+    const r = await fetch(base() + "/api", { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      set("connTxt", "เชื่อมต่ออยู่");
+      $("conn").className = "pill on";
+      set("pos", `${fmt(d.robot_x)} , ${fmt(d.robot_y)}`);
+      set("u1", fmt(d.uwb_a1) + " ม.");
+      set("u2", fmt(d.uwb_a2) + " ม.");
+      set("mode", d.motor_mode);
+      set("angC", fmt(d.heading_deg) + "°");
+      
+      if (d.tag_fix && d.tag_lat && d.tag_lon) {
+        const ll = [d.tag_lat, d.tag_lon];
+        if (!robotMarker) robotMarker = L.circleMarker(ll, { radius: 8, color: '#237a4b', fillOpacity: 0.8 }).addTo(map);
+        else robotMarker.setLatLng(ll);
+        if ($("follow").checked) map.panTo(ll);
+      }
+      $("raw").textContent = JSON.stringify(d, null, 2);
+    }
+  } catch (e) {
+    set("connTxt", "ขาดการเชื่อมต่อ");
+    $("conn").className = "pill off";
+  }
+  setTimeout(poll, 400);
+}
+
+async function setMode(m){
+  await fetch(base() + "/mode?m=" + m);
+}
+async function sendTarget(){
+  await fetch(base() + `/setTarget?x=${$("tx").value}&y=${$("ty").value}`);
+}
+async function clearTarget(){
+  await fetch(base() + "/clearTarget");
+}
+
+poll();
+</script>
+</body>
+</html>
